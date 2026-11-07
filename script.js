@@ -1,242 +1,125 @@
+const canvas = document.getElementById("fire");
+const ctx = canvas.getContext("2d");
 
-const canvas = document.getElementById('artCanvas');
-const ctx = canvas.getContext('2d', { alpha: false });
+let width;
+let height;
+let columns;
+let rows;
 
-const imageInput = document.getElementById('imageInput');
-const fontSizeInput = document.getElementById('fontSize');
-const speedInput = document.getElementById('speed');
-const toggleButton = document.getElementById('toggleAnimation');
+const fontSize = 13;
+const cellWidth = 9;
+const cellHeight = 13;
 
-const placeholder = document.getElementById('placeholder');
-const status = document.getElementById('status');
+let particles = [];
 
-const sizeValue = document.getElementById('sizeValue');
-const speedValue = document.getElementById('speedValue');
-const resolution = document.getElementById('resolution');
+function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-let sourceImage = null;
-let pixels = [];
-let animationRunning = true;
-let animationFrame = null;
-let lastRender = 0;
+    width = window.innerWidth;
+    height = window.innerHeight;
 
-let fontSize = 7;
-let animationSpeed = 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
 
-const offscreen = document.createElement('canvas');
-const offCtx = offscreen.getContext('2d', {
-    willReadFrequently: true
-});
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-const MAX_WIDTH = 1400;
-const MAX_HEIGHT = 1000;
+    columns = Math.ceil(width / cellWidth);
+    rows = Math.ceil(height / cellHeight);
 
-imageInput.addEventListener('change', event => {
-    const file = event.target.files[0];
+    createFlame();
+}
 
-    if (!file) return;
+function createFlame() {
+    particles = [];
 
-    const image = new Image();
-    const url = URL.createObjectURL(file);
+    const centerX = columns / 2;
+    const baseY = rows * 0.83;
+    const flameHeight = rows * 0.65;
 
-    image.onload = () => {
-        sourceImage = image;
+    for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < columns; x++) {
 
-        URL.revokeObjectURL(url);
+            const nx = (x - centerX) / (columns * 0.5);
+            const ny = (baseY - y) / flameHeight;
 
-        placeholder.style.display = 'none';
-        canvas.style.display = 'block';
+            if (ny < 0 || ny > 1) continue;
 
-        prepareImage();
-        toggleButton.disabled = false;
+            const flameWidth = 0.025 + 0.48 * Math.pow(1 - ny, 0.72);
 
-        status.textContent = 'IMAGEM PROCESSADA';
+            const irregularity =
+                Math.sin(x * 0.12 + y * 0.08) * 0.025 +
+                Math.sin(x * 0.04 - y * 0.15) * 0.018;
 
-        if (!animationRunning) {
-            animationRunning = true;
+            if (Math.abs(nx) > flameWidth + irregularity) continue;
+
+            const distance = Math.abs(nx) / flameWidth;
+
+            particles.push({
+                x: x * cellWidth,
+                y: y * cellHeight,
+                nx,
+                ny,
+                distance,
+                seed: Math.random() * Math.PI * 2,
+                binary: Math.random() > 0.5 ? 1 : 0,
+                phase: Math.random() * 10
+            });
         }
-
-        toggleButton.textContent = 'PAUSAR ANIMAÇÃO';
-
-        startAnimation();
-    };
-
-    image.onerror = () => {
-        URL.revokeObjectURL(url);
-        status.textContent = 'ERRO AO CARREGAR IMAGEM';
-    };
-
-    image.src = url;
-});
-
-function prepareImage() {
-    const scale = Math.min(
-        MAX_WIDTH / sourceImage.width,
-        MAX_HEIGHT / sourceImage.height,
-        1
-    );
-
-    const width = Math.max(
-        1,
-        Math.floor(sourceImage.width * scale)
-    );
-
-    const height = Math.max(
-        1,
-        Math.floor(sourceImage.height * scale)
-    );
-
-    offscreen.width = width;
-    offscreen.height = height;
-
-    offCtx.drawImage(sourceImage, 0, 0, width, height);
-
-    const imageData = offCtx.getImageData(
-        0, 0, width, height
-    );
-
-    pixels = imageData.data;
-
-    renderDimensions();
+    }
 }
 
-function renderDimensions() {
-    const cellWidth = fontSize * 0.62;
-    const cellHeight = fontSize * 1.05;
+function getColor(p, time) {
+    const wave =
+        Math.sin(time * 3.5 + p.seed + p.ny * 12) * 0.5 +
+        Math.sin(time * 6 + p.seed * 2) * 0.25 +
+        Math.sin(time * 2 + p.nx * 15) * 0.25;
 
-    const columns = Math.floor(offscreen.width / cellWidth);
-    const rows = Math.floor(offscreen.height / cellHeight);
+    const flicker = (wave + 1) / 2;
 
-    canvas.width = Math.max(1, columns * cellWidth);
-    canvas.height = Math.max(1, rows * cellHeight);
+    const core = p.distance < 0.25 && p.ny < 0.65;
 
-    resolution.textContent = `${columns} × ${rows}`;
+    if (core) {
+        return `rgba(255, ${220 + flicker * 35}, ${130 + flicker * 125}, ${0.65 + flicker * 0.35})`;
+    }
 
-    ctx.font = `${fontSize}px "DM Mono", monospace`;
-    ctx.textBaseline = 'top';
+    if (p.distance < 0.55) {
+        return `rgba(255, ${120 + flicker * 120}, ${15 + flicker * 50}, ${0.7 + flicker * 0.3})`;
+    }
 
-    canvas.dataset.columns = columns;
-    canvas.dataset.rows = rows;
-}
+    if (p.distance < 0.8) {
+        return `rgba(255, ${55 + flicker * 100}, ${5 + flicker * 20}, ${0.65 + flicker * 0.3})`;
+    }
 
-function getPixelColor(x, y) {
-    const width = offscreen.width;
-
-    const px = Math.min(width - 1, Math.floor(x));
-    const py = Math.min(offscreen.height - 1, Math.floor(y));
-
-    const index = (py * width + px) * 4;
-
-    return [
-        pixels[index],
-        pixels[index + 1],
-        pixels[index + 2]
-    ];
+    return `rgba(${180 + flicker * 75}, ${20 + flicker * 65}, 5, ${0.5 + flicker * 0.35})`;
 }
 
 function animate(timestamp) {
-    if (!animationRunning) return;
+    const time = timestamp * 0.001;
 
-    if (timestamp - lastRender >= 1000 / 30) {
-        drawBinaryArt(timestamp);
-        lastRender = timestamp;
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.font = `${fontSize}px monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (const p of particles) {
+        const change = Math.sin(time * 4 + p.seed + p.phase);
+
+        const binary = change > 0 ? "1" : "0";
+
+        ctx.fillStyle = getColor(p, time);
+
+        ctx.fillText(
+            binary,
+            p.x,
+            p.y
+        );
     }
 
-    animationFrame = requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
 }
 
-function drawBinaryArt(timestamp) {
-    const columns = Number(canvas.dataset.columns);
-    const rows = Number(canvas.dataset.rows);
+window.addEventListener("resize", resize);
 
-    const cellWidth = fontSize * 0.62;
-    const cellHeight = fontSize * 1.05;
-
-    const time = timestamp * 0.001 * animationSpeed;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < columns; col++) {
-
-            const x = col * cellWidth;
-            const y = row * cellHeight;
-
-            const color = getPixelColor(
-                (col + 0.5) * offscreen.width / columns,
-                (row + 0.5) * offscreen.height / rows
-            );
-
-            const index = row * columns + col;
-
-            const phase = (index % 31) * 0.035;
-
-            const binaryState = Math.floor(
-                (time * 1.5 + phase) % 2
-            );
-
-            const character = binaryState === 0 ? '0' : '1';
-
-            const pulse = 0.72 + (
-                0.28 * (
-                    0.5 + 0.5 * Math.sin(time * 1.8 + phase)
-                )
-            );
-
-            const r = Math.min(255, Math.round(color[0] * pulse));
-            const g = Math.min(255, Math.round(color[1] * pulse));
-            const b = Math.min(255, Math.round(color[2] * pulse));
-
-            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-
-            ctx.fillText(character, x, y);
-        }
-    }
-}
-
-function startAnimation() {
-    if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-    }
-
-    animationRunning = true;
-    lastRender = 0;
-
-    animationFrame = requestAnimationFrame(animate);
-}
-
-function pauseAnimation() {
-    animationRunning = false;
-
-    if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-        animationFrame = null;
-    }
-}
-
-fontSizeInput.addEventListener('input', event => {
-    fontSize = Number(event.target.value);
-
-    sizeValue.textContent = `${fontSize}px`;
-
-    if (sourceImage) {
-        renderDimensions();
-        startAnimation();
-    }
-});
-
-speedInput.addEventListener('input', event => {
-    animationSpeed = Number(event.target.value);
-
-    speedValue.textContent = `${animationSpeed}x`;
-});
-
-toggleButton.addEventListener('click', () => {
-    if (animationRunning) {
-        pauseAnimation();
-        toggleButton.textContent = 'RETOMAR ANIMAÇÃO';
-    } else {
-        startAnimation();
-        toggleButton.textContent = 'PAUSAR ANIMAÇÃO';
-    }
-});
+resize();
+requestAnimationFrame(animate);

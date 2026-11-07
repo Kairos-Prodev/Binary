@@ -1,60 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Binary Art</title>
+    <title>Binary Flame</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <header>
-        <div class="brand">BINARY<span>ART</span></div>
-        <div class="status" id="status">AGUARDANDO IMAGEM</div>
-    </header>
-
-    <main>
-        <section class="controls">
-            <div class="control-group">
-                <label for="imageInput">IMAGEM DE REFERÊNCIA</label>
-                <input type="file" id="imageInput" accept="image/*">
-            </div>
-
-            <div class="control-group">
-                <label>
-                    DENSIDADE DOS CARACTERES
-                    <span id="sizeValue">7px</span>
-                </label>
-                <input type="range" id="fontSize" min="3" max="16" value="7">
-            </div>
-
-            <div class="control-group">
-                <label>
-                    VELOCIDADE DA ANIMAÇÃO
-                    <span id="speedValue">1x</span>
-                </label>
-                <input type="range" id="speed" min="1" max="5" value="1">
-            </div>
-
-            <button id="toggleAnimation" disabled>PAUSAR ANIMAÇÃO</button>
-        </section>
-
-        <section class="art-container">
-            <canvas id="artCanvas"></canvas>
-
-            <div class="placeholder" id="placeholder">
-                <div class="placeholder-icon">01</div>
-                <h2>SUA ARTE COMEÇA AQUI</h2>
-                <p>Importe uma imagem para iniciar a conversão binária.</p>
-            </div>
-        </section>
-
-        <footer>
-            <span> BINARY ART ENGINE</span>
-            <span id="resolution">0 × 0</span>
-        </footer>
-    </main>
+    <canvas id="fire"></canvas>
 
     <script src="script.js"></script>
 </body>
