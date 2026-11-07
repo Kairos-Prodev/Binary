@@ -1,7 +1,7 @@
 const canvas = document.getElementById("fire");
 const ctx = canvas.getContext("2d", { alpha: false });
 
-const PIXEL_SIZE = 0.5;
+const PIXEL_SIZE = 1;
 const GAP = 0;
 
 let width = 0;
@@ -11,7 +11,7 @@ let rows = 0;
 let cells = [];
 
 let lastFrame = 0;
-const FPS = 30;
+const FPS = 40;
 const FRAME_INTERVAL = 1000 / FPS;
 
 const seed = Math.random() * 1000;
