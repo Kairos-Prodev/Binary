@@ -1,9 +1,8 @@
 const canvas = document.getElementById("fire");
 const ctx = canvas.getContext("2d", { alpha: false });
 
-const CELL_W = 10;
-const CELL_H = 13;
-const FONT_SIZE = 13;
+const PIXEL_SIZE = 5;
+const GAP = 1;
 
 let width = 0;
 let height = 0;
@@ -15,7 +14,7 @@ let lastFrame = 0;
 const FPS = 40;
 const FRAME_INTERVAL = 1000 / FPS;
 
-let seed = Math.random() * 1000;
+const seed = Math.random() * 1000;
 
 function random(x, y) {
     const value = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453;
@@ -50,7 +49,6 @@ function fbm(x, y) {
 
     for (let i = 0; i < 4; i++) {
         value += smoothNoise(x * frequency, y * frequency) * amplitude;
-
         frequency *= 2;
         amplitude *= 0.5;
     }
@@ -69,8 +67,10 @@ function resize() {
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    columns = Math.ceil(width / CELL_W);
-    rows = Math.ceil(height / CELL_H);
+    const step = PIXEL_SIZE + GAP;
+
+    columns = Math.ceil(width / step);
+    rows = Math.ceil(height / step);
 
     cells = [];
 
@@ -80,8 +80,7 @@ function resize() {
                 x,
                 y,
                 phase: Math.random() * Math.PI * 2,
-                flip: Math.random() * 10,
-                value: Math.random() > 0.5 ? "1" : "0"
+                variation: Math.random()
             });
         }
     }
@@ -93,13 +92,11 @@ function flameField(x, y, time) {
 
     const baseWidth = columns * 0.24;
 
-    const turbulence1 = Math.sin(
-        y * 0.075 - time * 2.3
-    ) * columns * 0.035;
+    const turbulence1 =
+        Math.sin(y * 0.075 - time * 2.3) * columns * 0.035;
 
-    const turbulence2 = Math.sin(
-        y * 0.14 + time * 1.7
-    ) * columns * 0.025;
+    const turbulence2 =
+        Math.sin(y * 0.14 + time * 1.7) * columns * 0.025;
 
     const noise = fbm(
         x * 0.035 + time * 0.15,
@@ -120,16 +117,7 @@ function flameField(x, y, time) {
         Math.sin(y * 0.11 + time * 0.9) * columns * 0.015;
 
     const distance = Math.abs(x - movingCenter);
-
     const edge = flameWidth - distance;
-
-    const base = y > rows * 0.82;
-
-    const tipNoise = Math.sin(x * 0.12 + time * 2) * 0.04;
-
-    const tip = vertical + tipNoise;
-
-    const body = edge > 0;
 
     const tongues =
         Math.sin(x * 0.075 + time * 2.2) +
@@ -141,13 +129,7 @@ function flameField(x, y, time) {
         tongues > 0.8 &&
         edge > -columns * 0.035;
 
-    const inside =
-        body ||
-        (upperFlames && tip > 0);
-
-    if (!inside) {
-        return null;
-    }
+    if (edge <= 0 && !upperFlames) return null;
 
     const normalizedDistance = Math.max(
         0,
@@ -167,8 +149,6 @@ function flameField(x, y, time) {
         heatNoise * 0.3 +
         verticalHeat * 0.2;
 
-    if (base) intensity += 0.15;
-
     intensity += Math.sin(
         y * 0.12 - time * 5 + x * 0.035
     ) * 0.12;
@@ -178,8 +158,7 @@ function flameField(x, y, time) {
     return {
         intensity,
         distance: normalizedDistance,
-        vertical: verticalHeat,
-        noise: heatNoise
+        vertical: verticalHeat
     };
 }
 
@@ -214,9 +193,7 @@ function flameColor(intensity, distance, vertical, time, phase) {
         b = 2 + brightness * 10;
     }
 
-    const alpha = 0.45 + brightness * 0.55;
-
-    return `rgba(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)},${alpha})`;
+    return `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
 }
 
 function animate(timestamp) {
@@ -227,43 +204,38 @@ function animate(timestamp) {
     lastFrame = timestamp;
 
     const time = timestamp * 0.001;
+    const step = PIXEL_SIZE + GAP;
 
     ctx.fillStyle = "#030303";
     ctx.fillRect(0, 0, width, height);
-
-    ctx.font = `${FONT_SIZE}px monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
 
     for (const cell of cells) {
         const field = flameField(cell.x, cell.y, time);
 
         if (!field) continue;
 
-        const {
-            intensity,
-            distance,
-            vertical
-        } = field;
-
         const flicker =
             Math.sin(time * 5 + cell.phase) +
-            Math.sin(time * 9 + cell.flip);
+            Math.sin(time * 9 + cell.variation * 10);
 
-        const binary = flicker > 0 ? "1" : "0";
+        const intensity = Math.max(
+            0,
+            Math.min(1, field.intensity + flicker * 0.06)
+        );
 
         ctx.fillStyle = flameColor(
             intensity,
-            distance,
-            vertical,
+            field.distance,
+            field.vertical,
             time,
             cell.phase
         );
 
-        ctx.fillText(
-            binary,
-            cell.x * CELL_W + CELL_W / 2,
-            cell.y * CELL_H + CELL_H / 2
+        ctx.fillRect(
+            cell.x * step,
+            cell.y * step,
+            PIXEL_SIZE,
+            PIXEL_SIZE
         );
     }
 }
